@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, date
 
 from tortoise import Tortoise, fields, run_async
 from tortoise.models import Model
@@ -8,8 +8,7 @@ from config import Config
 
 
 class User(Model):
-    id = fields.IntField(pk=True)
-    tg_id = fields.IntField()
+    tg_id = fields.IntField(pk=True)
     full_name = fields.CharField(max_length=255)
     tg_user_name = fields.CharField(max_length=255)
 
@@ -19,15 +18,17 @@ class CustomsWork(Model):
     custom_type = fields.CharField(max_length=255)
     application_date = fields.CharField(max_length=255)
     create_date = fields.CharField(max_length=255)
-    user_purchases = fields.JSONField(default=list)
-    status_ready = fields.BooleanField()
+    status_ready = fields.BooleanField(default=False)
 
-    async def add_user_purchase(self, user_purchase: dict):
-        self.user_purchases.append(user_purchase)
-        await self.save()
 
-    async def get_user_in_custom(self, user_id: dict):
-        return any(str(user_id) in d for d in self.user_purchases)
+class Orders(Model):
+    id = fields.IntField(pk=True)
+    user = fields.ForeignKeyField('models.User', related_name='orders')
+    custom_type = fields.ForeignKeyField('models.CustomsWork', related_name='orders', on_delete=fields.CASCADE)
+    create_date = fields.CharField(max_length=255, default=date.today().strftime("%d-%m-%Y"))
+    order_str = fields.TextField()
+    qr_code = fields.TextField(default="")
+    payed_status = fields.BooleanField(default=False)
 
 
 class Storage:
@@ -57,12 +58,11 @@ class Storage:
 
     @staticmethod
     async def get_all_users_list() -> list:
-        users = await User.all()
-        return [user.tg_id for user in users]
+        return await User.all().values_list('tg_id', flat=True)
 
     @staticmethod
     async def get_user_name(user_id: int) -> list:
-        user = await User.filter(tg_id=str(user_id)).first()
+        user = await User.filter(tg_id=user_id).first()
         return user.full_name if user.full_name else user.tg_user_name
 
     @staticmethod
@@ -70,7 +70,7 @@ class Storage:
         if await CustomsWork.filter(custom_type=custom_type):
             await Storage.delete_custom_type_from_working(custom_type)
         await CustomsWork.create(
-            custom_type=custom_type, application_date=application_date, create_date=create_date, status_ready=False
+            custom_type=custom_type, application_date=application_date, create_date=create_date
         )
         logger.info(f"Добавление заказа {custom_type} в работу")
 
@@ -93,32 +93,41 @@ class Storage:
 
     @staticmethod
     async def get_custom_types_in_work() -> list:
-        custom_types = await CustomsWork.all()
-        return [custom_type.custom_type for custom_type in custom_types if not custom_type.status_ready]
+        return await CustomsWork.filter(status_ready=False).values_list('custom_type', flat=True)
 
     @staticmethod
     async def check_user_in_working_custom(custom_type: str, user_id: int):
-        custom_obj = await CustomsWork.get(custom_type=custom_type)
-        return await custom_obj.get_user_in_custom(user_id)
+        return await Orders.filter(user__tg_id=user_id, custom_type__custom_type=custom_type).exists()
 
     @staticmethod
     async def get_custom_users_list(custom_type: str) -> list:
         records = await Storage.get_customs_list(custom_type)
-        return [list(record.keys())[0] for record in records]
+        return [record[0] for record in records]
 
     @staticmethod
     async def get_customs_list(custom_type: str) -> list:
-        custom = await CustomsWork.filter(custom_type=custom_type).first()
-        user_purchases = custom.user_purchases
+        user_purchases = await Orders.filter(custom_type__custom_type=custom_type).values_list(
+            'user__tg_id',
+            'order_str',
+            'qr_code',
+            'payed_status',
+        )
         return user_purchases
 
     @staticmethod
     async def save_user_to_working_custom_type(custom_type: str, user_purchase: dict):
-        custom_obj = await CustomsWork.get(custom_type=custom_type)
-        await custom_obj.add_user_purchase(user_purchase)
+        user_id = list(user_purchase.keys())[0]
+        user_obj = await User.get(tg_id=user_id)
+        custom_type_obj = await CustomsWork.get(custom_type=custom_type)
+
+        await Orders.create(
+            user=user_obj,
+            custom_type=custom_type_obj,
+            order_str=list(user_purchase.values())[0],
+        )
 
         logger.info(
-            f"Пользователь {list(user_purchase.keys())[0]} добавлен в закупку {custom_type}"
+            f"Пользователь {user_id} добавлен в закупку {custom_type}"
         )
 
     @staticmethod

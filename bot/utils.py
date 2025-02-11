@@ -105,7 +105,7 @@ async def check_custom_application_date(custom_type: str) -> bool:
 
 
 async def sync_db_to_gs(custom_type: str) -> bool:
-    async def refactor_user_purchase(user_purchase_dict: dict, df: pd.DataFrame) -> list:
+    async def refactor_user_purchase(user_purchase_dict: dict, qr: str, pay_status: int, df: pd.DataFrame) -> list:
         products = df[Config.PRODUCT_NAME_COLUMN_NAME].tolist()
         product_price = df[Config.PRODUCT_PRICE_COLUMN_NAME].tolist()
         result = []
@@ -119,7 +119,8 @@ async def sync_db_to_gs(custom_type: str) -> bool:
                 product_count = 0
             result.append(product_count)
         result.append(summ_value)
-        result.append("-")
+        result.append(qr)
+        result.append(pay_status)
         return result
 
     async def str_to_dict(user_input: str):
@@ -136,14 +137,16 @@ async def sync_db_to_gs(custom_type: str) -> bool:
     gs_df = await gs_client.get_custom_df(custom_type)
     df_dict[Config.PRODUCT_NAME_COLUMN_NAME] = gs_df[Config.PRODUCT_NAME_COLUMN_NAME].tolist()
     df_dict[Config.PRODUCT_NAME_COLUMN_NAME].append("Итого")
+    df_dict[Config.PRODUCT_NAME_COLUMN_NAME].append("QR-code")
     df_dict[Config.PRODUCT_NAME_COLUMN_NAME].append("Оплачено")
     try:
         customs_list = await storage_client.get_customs_list(custom_type)
         for user_purchase_info in customs_list:
-            for user_id, user_purchase_str in user_purchase_info.items():
-                user_purchase = await str_to_dict(user_purchase_str)
-                user_name = await storage_client.get_user_name(user_id)
-                df_dict[user_name] = await refactor_user_purchase(user_purchase, gs_df)
+            user_name = await storage_client.get_user_name(user_purchase_info[0])
+            user_purchase = await str_to_dict(user_purchase_info[1])
+            qr_code = user_purchase_info[2]
+            payed_status = user_purchase_info[3]
+            df_dict[user_name] = await refactor_user_purchase(user_purchase, qr_code, payed_status, gs_df)
 
         create_date = await storage_client.get_create_date(custom_type)
         await gs_client.insert_sync_df(pd.DataFrame(df_dict), custom_type, create_date)

@@ -4,7 +4,6 @@ from aiogram.fsm.context import FSMContext
 from aiogram.types import Message, ReplyKeyboardRemove
 
 from bot.clients.init_clients import storage_client
-from bot.log import logger
 from bot.states import User
 from bot.utils import (
     make_keyboard,
@@ -27,7 +26,6 @@ async def confirm(msg: Message, state: FSMContext):
         await storage_client.save_user_to_working_custom_type(custom_type, user_purchase)
         message = "Заказ принят, ожидайте сообщение об оплате"
 
-        logger.info(f"Оформлен заказ от {msg.from_user.id} по закупке {custom_type}")
     else:
         message = "Заказ отменен"
 
