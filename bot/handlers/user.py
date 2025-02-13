@@ -1,7 +1,7 @@
 from aiogram import Router, F
 from aiogram.filters import StateFilter
 from aiogram.fsm.context import FSMContext
-from aiogram.types import Message, ReplyKeyboardRemove
+from aiogram.types import Message, ReplyKeyboardRemove, CallbackQuery
 
 from bot.clients.init_clients import storage_client, pyro_client
 from bot.states import User
@@ -13,6 +13,7 @@ from bot.texts import (
 )
 from bot.utils import (
     make_keyboard,
+    make_inline_keyboard,
     UserConfirmButtons,
     check_user_custom_format,
     check_custom_application_date,
@@ -22,15 +23,14 @@ from config import Config
 
 user_router = Router()
 
-
-@user_router.message(User.payed, F.text.in_([el.value for el in UserPaymentButton]))
-async def payed(msg: Message, state: FSMContext):
+@user_router.callback_query(User.payed, F.data.in_([el.name for el in UserPaymentButton]))
+async def send_random_value(callback: CallbackQuery, state: FSMContext):
     user_data = await state.get_data()
     custom_type = user_data.get("custom_type")
-    if msg.text == UserPaymentButton.payed.value:
+    if callback.data == UserPaymentButton.payed.name:
         payment_link = user_data.get("payment_link")
+        await storage_client.update_user_custom_payed(custom_type, payment_link, callback.from_user.id)
 
-        await storage_client.update_user_custom_payed(custom_type, payment_link, msg.from_user.id)
         message = CUSTOM_DONE_MESSAGE
         keyboard = await make_keyboard(
             [
@@ -39,20 +39,25 @@ async def payed(msg: Message, state: FSMContext):
             ]
         )
         await state.clear()
+        await callback.answer(
+            text="Спасибо за оплату!",
+            show_alert=False
+        )
 
-    elif msg.text == UserPaymentButton.error.value:
+    elif callback.data == UserPaymentButton.error.name:
         custom_cost = user_data.get("custom_cost")
         payment_link = await pyro_client.get_payment_link(custom_cost)
         await state.update_data(payment_link=payment_link)
+
         message = PAYMENT_MESSAGE.format(
             custom_cost=custom_cost,
             payment_link=payment_link,
         )
-        keyboard = await make_keyboard([el.value for el in UserPaymentButton])
+        keyboard = await make_inline_keyboard(UserPaymentButton)
         await state.set_state(User.payed)
 
-    elif msg.text == UserPaymentButton.cancel.value:
-        await storage_client.delete_user_custom(custom_type, msg.from_user.id)
+    elif callback.data == UserPaymentButton.cancel.name:
+        await storage_client.delete_user_custom(custom_type, callback.from_user.id)
         message = f"Закупка {custom_type} отменена"
         keyboard = await make_keyboard(
             [
@@ -65,10 +70,12 @@ async def payed(msg: Message, state: FSMContext):
         message = "Я Вас не понял, пожалуйста, нажмите кнопку"
         keyboard = await make_keyboard([el.value for el in UserPaymentButton])
 
-    await msg.answer(
+    await callback.message.answer(
         text=message,
-        reply_markup=keyboard,
+        reply_markup=keyboard
     )
+
+    await callback.answer()
 
 
 @user_router.message(User.confirm, F.text.in_([el.value for el in UserConfirmButtons]))
@@ -90,7 +97,7 @@ async def confirm(msg: Message, state: FSMContext):
             custom_cost=custom_cost,
             payment_link=payment_link
         )
-        keyboard = await make_keyboard([el.value for el in UserPaymentButton])
+        keyboard = await make_inline_keyboard(UserPaymentButton)
 
         await state.set_state(User.payed)
     else:

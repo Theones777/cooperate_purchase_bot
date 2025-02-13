@@ -10,7 +10,9 @@ from aiogram.types import (
     ReplyKeyboardMarkup,
     KeyboardButton,
     ReplyKeyboardRemove,
+    InlineKeyboardButton,
 )
+from aiogram.utils.keyboard import InlineKeyboardBuilder
 from thefuzz import process
 
 from bot.clients.init_clients import storage_client, gs_client
@@ -54,6 +56,16 @@ async def set_commands(bot: Bot):
 async def make_keyboard(items: list[str]) -> ReplyKeyboardMarkup:
     row = [KeyboardButton(text=item) for item in items]
     return ReplyKeyboardMarkup(keyboard=[row], resize_keyboard=True)
+
+
+async def make_inline_keyboard(enum_obj: Enum) -> InlineKeyboardBuilder:
+    builder = InlineKeyboardBuilder()
+    for item in enum_obj:
+        builder.add(InlineKeyboardButton(
+            text=item.value,
+            callback_data=item.name)
+        )
+    return builder.as_markup()
 
 
 async def mailing(
