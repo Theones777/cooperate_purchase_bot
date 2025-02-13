@@ -32,6 +32,12 @@ class UserConfirmButtons(Enum):
     cancel = "Отмена"
 
 
+class UserPaymentButton(Enum):
+    payed = "Оплачено"
+    error = "Ошибка оплаты"
+    cancel = "Отменить заказ"
+
+
 async def get_admin_ids() -> list:
     return set([int(el.strip()) for el in Config.ADMIN_IDS.split(",")])
 
@@ -81,19 +87,25 @@ async def mailing(
 
 async def check_user_custom_format(user_custom: str, custom_type: str) -> str:
     refactored_user_custom = ""
-    products_list = await gs_client.get_products_list(custom_type)
+    custom_cost = 0
+    custom_df = await gs_client.get_custom_df(custom_type)
+    products_list = custom_df[Config.PRODUCT_NAME_COLUMN_NAME].tolist()
     try:
-        for string in user_custom.split('\n'):
+        for string in user_custom.split("\n"):
             if string:
                 string_split = string.split("-")
                 product = process.extractOne(string_split[0].strip(), products_list)[0]
                 product_count = int(string_split[1].strip())
+                product_price = custom_df[
+                    custom_df[Config.PRODUCT_NAME_COLUMN_NAME] == product
+                ][Config.PRODUCT_PRICE_COLUMN_NAME].values[0]
+                custom_cost += product_price * product_count
                 refactored_user_custom += f"{product} - {product_count}\n"
     except Exception as e:
         logger.warning(f"Ошибка введенного формата\n {e}")
         return False
 
-    return refactored_user_custom
+    return refactored_user_custom, custom_cost
 
 
 async def check_custom_application_date(custom_type: str) -> bool:
@@ -105,7 +117,7 @@ async def check_custom_application_date(custom_type: str) -> bool:
 
 
 async def sync_db_to_gs(custom_type: str) -> bool:
-    async def refactor_user_purchase(user_purchase_dict: dict, df: pd.DataFrame) -> list:
+    async def refactor_user_purchase(user_purchase_dict: dict, qr: str, pay_status: int, df: pd.DataFrame) -> list:
         products = df[Config.PRODUCT_NAME_COLUMN_NAME].tolist()
         product_price = df[Config.PRODUCT_PRICE_COLUMN_NAME].tolist()
         result = []
@@ -114,12 +126,13 @@ async def sync_db_to_gs(custom_type: str) -> bool:
         for i, product in enumerate(products):
             if product in user_purchase_dict:
                 product_count = user_purchase_dict[product]
-                summ_value += (product_count * int(product_price[i]))
+                summ_value += product_count * int(product_price[i])
             else:
                 product_count = 0
             result.append(product_count)
         result.append(summ_value)
-        result.append("-")
+        result.append(qr)
+        result.append(pay_status)
         return result
 
     async def str_to_dict(user_input: str):
@@ -136,14 +149,16 @@ async def sync_db_to_gs(custom_type: str) -> bool:
     gs_df = await gs_client.get_custom_df(custom_type)
     df_dict[Config.PRODUCT_NAME_COLUMN_NAME] = gs_df[Config.PRODUCT_NAME_COLUMN_NAME].tolist()
     df_dict[Config.PRODUCT_NAME_COLUMN_NAME].append("Итого")
+    df_dict[Config.PRODUCT_NAME_COLUMN_NAME].append("QR-code")
     df_dict[Config.PRODUCT_NAME_COLUMN_NAME].append("Оплачено")
     try:
         customs_list = await storage_client.get_customs_list(custom_type)
         for user_purchase_info in customs_list:
-            for user_id, user_purchase_str in user_purchase_info.items():
-                user_purchase = await str_to_dict(user_purchase_str)
-                user_name = await storage_client.get_user_name(user_id)
-                df_dict[user_name] = await refactor_user_purchase(user_purchase, gs_df)
+            user_name = await storage_client.get_user_name(user_purchase_info[0])
+            user_purchase = await str_to_dict(user_purchase_info[1])
+            qr_code = user_purchase_info[2]
+            payed_status = user_purchase_info[3]
+            df_dict[user_name] = await refactor_user_purchase(user_purchase, qr_code, payed_status, gs_df)
 
         create_date = await storage_client.get_create_date(custom_type)
         await gs_client.insert_sync_df(pd.DataFrame(df_dict), custom_type, create_date)

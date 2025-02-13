@@ -5,7 +5,7 @@ from aiogram.types import Message, ReplyKeyboardRemove
 
 from bot.clients.init_clients import storage_client
 from bot.states import Delay
-from bot.texts import DELAY_MESSAGE
+from bot.texts import DELAY_MESSAGE, MAILING_CONFIRM_TEMPLATE
 from bot.utils import make_keyboard, mailing, MailingTypes, AdminConfirmButtons
 
 delay_router = Router()
@@ -22,7 +22,7 @@ async def confirm(msg: Message, state: FSMContext, bot: Bot):
 
     await mailing(bot, mailing_type, custom_type, mailing_message)
     await msg.answer(
-        text=f"Рассылка задержки заказа завершена", reply_markup=ReplyKeyboardRemove()
+        text="Рассылка задержки заказа завершена", reply_markup=ReplyKeyboardRemove()
     )
     await state.clear()
 
@@ -39,10 +39,12 @@ async def expected_date_inserted(msg: Message, state: FSMContext):
         expected_date=expected_date, mailing_message=mailing_message
     )
     await msg.answer(
-        text=f"Вы уверены, что хотите отправить данное сообщение?\n"
-             f"Закупка - {custom_type}\n"
-             f"Сообщение:\n{mailing_message}",
-        reply_markup=await make_keyboard([el.value for el in AdminConfirmButtons])
+        text=MAILING_CONFIRM_TEMPLATE.format(
+            mailing_type=MailingTypes.specified.value,
+            custom_type=custom_type,
+            mailing_message=mailing_message,
+        ),
+        reply_markup=await make_keyboard([el.value for el in AdminConfirmButtons]),
     )
     await state.set_state(Delay.confirm)
 
@@ -53,7 +55,7 @@ async def custom_type_chosen(msg: Message, state: FSMContext):
     await state.update_data(custom_type=custom_type)
     await msg.answer(
         text="Теперь, пожалуйста, введите дату предполагаемой поставки",
-        reply_markup=ReplyKeyboardRemove()
+        reply_markup=ReplyKeyboardRemove(),
     )
     await state.set_state(Delay.expected_date)
 

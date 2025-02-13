@@ -5,6 +5,7 @@ from aiogram.types import Message, ReplyKeyboardRemove
 
 from bot.clients.init_clients import gs_client, storage_client
 from bot.states import Start
+from bot.texts import MAILING_CONFIRM_TEMPLATE
 from bot.utils import make_keyboard, AdminConfirmButtons, MailingTypes, mailing
 from config import Config
 
@@ -21,19 +22,25 @@ async def confirm(msg: Message, state: FSMContext, bot: Bot):
     application_date = user_data.get("application_date")
     mailing_type = MailingTypes.massive.value
 
-    create_date = await gs_client.make_custom_worksheet(custom_type)
-    await storage_client.save_custom_type_to_work(
-        custom_type=custom_type, application_date=application_date, create_date=create_date
-    )
-    buttons = [
-        f"{Config.MAKE_CUSTOM_PREFIX}{custom_type}"
-        for custom_type in await storage_client.get_custom_types_in_work()
-    ]
+    if create_date := await gs_client.make_custom_worksheet(custom_type):
+        await storage_client.save_custom_type_to_work(
+            custom_type=custom_type,
+            application_date=application_date,
+            create_date=create_date,
+        )
+        buttons = [
+            f"{Config.MAKE_CUSTOM_PREFIX}{custom_type}"
+            for custom_type in await storage_client.get_custom_types_in_work()
+        ]
 
-    await mailing(bot, mailing_type, custom_type, mailing_message, buttons)
-    await msg.answer(
-        text=f"Рассылка начала закупки завершена", reply_markup=ReplyKeyboardRemove()
-    )
+        await mailing(bot, mailing_type, custom_type, mailing_message, buttons)
+        message = "Рассылка начала закупки завершена"
+
+    else:
+        message = (
+            f"Гугл-страница с закупкой {custom_type} с сегодняшней датой уже существует"
+        )
+    await msg.answer(text=message, reply_markup=ReplyKeyboardRemove())
     await state.clear()
 
 
@@ -53,10 +60,12 @@ async def expected_date_inserted(msg: Message, state: FSMContext):
         application_date=application_date,
     )
     await msg.answer(
-        text=f"Вы уверены, что хотите отправить данное сообщение?\n"
-             f"Закупка - {custom_type}\n"
-             f"Сообщение:\n{mailing_message}",
-        reply_markup=await make_keyboard([el.value for el in AdminConfirmButtons])
+        text=MAILING_CONFIRM_TEMPLATE.format(
+            mailing_type=MailingTypes.massive.value,
+            custom_type=custom_type,
+            mailing_message=mailing_message,
+        ),
+        reply_markup=await make_keyboard([el.value for el in AdminConfirmButtons]),
     )
     await state.set_state(Start.confirm)
 

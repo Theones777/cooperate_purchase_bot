@@ -25,6 +25,11 @@ class Start(StatesGroup):
     confirm = State()
 
 
+class PaymentReceived(StatesGroup):
+    custom_type = State()
+    confirm = State()
+
+
 class Sync(StatesGroup):
     custom_type = State()
 
@@ -32,3 +37,4 @@ class Sync(StatesGroup):
 class User(StatesGroup):
     user_custom = State()
     confirm = State()
+    payed = State()

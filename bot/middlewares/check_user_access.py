@@ -16,5 +16,5 @@ class CheckUserAccessMiddleware(BaseMiddleware):
             result = await handler(event, data)
             return result
 
-        await event.answer("Вы слишком привилегированны!", show_alert=True)
+        await event.answer(text="Вы слишком привилегированны!", show_alert=True)
         return
