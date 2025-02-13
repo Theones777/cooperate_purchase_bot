@@ -58,7 +58,7 @@ class Storage:
 
     @staticmethod
     async def get_all_users_list() -> list:
-        return await User.all().values_list('tg_id', flat=True)
+        return await User.all().values_list("tg_id", flat=True)
 
     @staticmethod
     async def get_user_name(user_id: int) -> list:
@@ -70,7 +70,9 @@ class Storage:
         if await CustomsWork.filter(custom_type=custom_type):
             await Storage.delete_custom_type_from_working(custom_type)
         await CustomsWork.create(
-            custom_type=custom_type, application_date=application_date, create_date=create_date
+            custom_type=custom_type,
+            application_date=application_date,
+            create_date=create_date,
         )
         logger.info(f"Добавление заказа {custom_type} в работу")
 
@@ -106,11 +108,13 @@ class Storage:
 
     @staticmethod
     async def get_customs_list(custom_type: str) -> list:
-        user_purchases = await Orders.filter(custom_type__custom_type=custom_type).values_list(
-            'user__tg_id',
-            'order_str',
-            'qr_code',
-            'payed_status',
+        user_purchases = await Orders.filter(
+            custom_type__custom_type=custom_type
+        ).values_list(
+            "user__tg_id",
+            "order_str",
+            "qr_code",
+            "payed_status",
         )
         return user_purchases
 
@@ -126,12 +130,31 @@ class Storage:
             order_str=list(user_purchase.values())[0],
         )
 
-        logger.info(
-            f"Пользователь {user_id} добавлен в закупку {custom_type}"
-        )
+        logger.info(f"Пользователь {user_id} добавлен в закупку {custom_type}")
 
     @staticmethod
     async def delete_custom_type_from_working(custom_type: str):
         await CustomsWork.filter(custom_type=custom_type).delete()
 
         logger.info(f"Закупка {custom_type} удалена из базы данных")
+
+    @staticmethod
+    async def update_user_custom_payed(custom_type: str, payment_link: str, user_id: int):
+        user_custom = await Orders.filter(
+            custom_type__custom_type=custom_type,
+            user__tg_id=user_id,
+        ).first()
+        user_custom.qr_code = payment_link
+        user_custom.payed_status = True
+        await user_custom.save()
+
+        logger.info(f"Пользователь {user_id} оплатил заказ {custom_type}")
+
+    @staticmethod
+    async def delete_user_custom(custom_type: str, user_id: int):
+        user_custom = await Orders.filter(
+            custom_type__custom_type=custom_type,
+            user__tg_id=user_id,
+        ).first()
+        await user_custom.delete()
+        logger.info(f"Пользователь {user_id} отменил заказ {custom_type}")

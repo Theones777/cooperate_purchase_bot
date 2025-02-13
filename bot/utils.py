@@ -32,6 +32,12 @@ class UserConfirmButtons(Enum):
     cancel = "Отмена"
 
 
+class UserPaymentButton(Enum):
+    payed = "Оплачено"
+    error = "Ошибка оплаты"
+    cancel = "Отменить заказ"
+
+
 async def get_admin_ids() -> list:
     return set([int(el.strip()) for el in Config.ADMIN_IDS.split(",")])
 
@@ -81,19 +87,25 @@ async def mailing(
 
 async def check_user_custom_format(user_custom: str, custom_type: str) -> str:
     refactored_user_custom = ""
-    products_list = await gs_client.get_products_list(custom_type)
+    custom_cost = 0
+    custom_df = await gs_client.get_custom_df(custom_type)
+    products_list = custom_df[Config.PRODUCT_NAME_COLUMN_NAME].tolist()
     try:
-        for string in user_custom.split('\n'):
+        for string in user_custom.split("\n"):
             if string:
                 string_split = string.split("-")
                 product = process.extractOne(string_split[0].strip(), products_list)[0]
                 product_count = int(string_split[1].strip())
+                product_price = custom_df[
+                    custom_df[Config.PRODUCT_NAME_COLUMN_NAME] == product
+                ][Config.PRODUCT_PRICE_COLUMN_NAME].values[0]
+                custom_cost += product_price * product_count
                 refactored_user_custom += f"{product} - {product_count}\n"
     except Exception as e:
         logger.warning(f"Ошибка введенного формата\n {e}")
         return False
 
-    return refactored_user_custom
+    return refactored_user_custom, custom_cost
 
 
 async def check_custom_application_date(custom_type: str) -> bool:
@@ -114,7 +126,7 @@ async def sync_db_to_gs(custom_type: str) -> bool:
         for i, product in enumerate(products):
             if product in user_purchase_dict:
                 product_count = user_purchase_dict[product]
-                summ_value += (product_count * int(product_price[i]))
+                summ_value += product_count * int(product_price[i])
             else:
                 product_count = 0
             result.append(product_count)

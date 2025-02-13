@@ -30,13 +30,3 @@ async def message_start_handler(msg: Message, state: FSMContext):
 @common_router.message(Command("help"))
 async def message_help_handler(msg: Message):
     await msg.answer(HELP_MESSAGE)
-
-
-@common_router.message(Command("test"))
-async def test_handler(msg: Message):
-    from pprint import pprint
-
-    pprint(msg)
-    await msg.answer(f"Test_handler: {msg.from_user.id}")
-    await msg.answer(f"Test_handler: {msg.from_user.full_name}")
-    await msg.answer(f"Test_handler: {msg.from_user.username}")

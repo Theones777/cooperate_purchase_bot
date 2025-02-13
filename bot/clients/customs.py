@@ -3,6 +3,7 @@ import datetime
 
 import gspread
 import pandas as pd
+from gspread.exceptions import APIError
 
 from bot.log import logger
 from bot.texts import START_CUSTOM_MESSAGE
@@ -21,7 +22,7 @@ class CustomsClient:
         worksheet = await loop.run_in_executor(
             None,
             self.client.worksheet,
-            f"{Config.CUSTOM_PRICE_WORKSHEET_PREFIX}_{custom_type}"
+            f"{Config.CUSTOM_PRICE_WORKSHEET_PREFIX}_{custom_type}",
         )
 
         records = await loop.run_in_executor(None, worksheet.get_all_records)
@@ -32,10 +33,7 @@ class CustomsClient:
     async def get_all_custom_types(self):
         loop = asyncio.get_running_loop()
 
-        worksheet_list = await loop.run_in_executor(
-            None,
-            self.client.worksheets
-        )
+        worksheet_list = await loop.run_in_executor(None, self.client.worksheets)
 
         custom_types = [
             el.title.replace(f"{Config.CUSTOM_PRICE_WORKSHEET_PREFIX}_", "")
@@ -73,35 +71,31 @@ class CustomsClient:
     async def make_custom_worksheet(self, custom_type: str) -> str:
         loop = asyncio.get_running_loop()
         today = datetime.date.today().strftime("%d-%m-%Y")
-
-        await loop.run_in_executor(
-            None,
-            self.client.add_worksheet,
-            f"{custom_type}_{today}", 1, 1
-        )
-        logger.info(f"Создана новая страница для заказа {custom_type}")
+        try:
+            await loop.run_in_executor(
+                None, self.client.add_worksheet, f"{custom_type}_{today}", 1, 1
+            )
+            logger.info(f"Создана новая страница для заказа {custom_type}")
+        except APIError:
+            today = False
         return today
-
-    async def get_products_list(self, custom_type: str):
-        df = await self.get_custom_df(custom_type)
-        return df[Config.PRODUCT_NAME_COLUMN_NAME].tolist()
 
     async def get_custom_df(self, custom_type: str):
         df = await self._get_custom_df(custom_type)
         df = df[df[Config.AVAILABLE_COLUMN_NAME] == "да"].dropna()
         return df
 
-    async def insert_sync_df(self, insert_df: pd.DataFrame, custom_type: str, create_date: str):
+    async def insert_sync_df(
+        self, insert_df: pd.DataFrame, custom_type: str, create_date: str
+    ):
         loop = asyncio.get_running_loop()
 
         worksheet = await loop.run_in_executor(
-            None,
-            self.client.worksheet,
-            f"{custom_type}_{create_date}"
+            None, self.client.worksheet, f"{custom_type}_{create_date}"
         )
 
         await loop.run_in_executor(
             None,
             worksheet.update,
-            [insert_df.columns.values.tolist()] + insert_df.values.tolist()
+            [insert_df.columns.values.tolist()] + insert_df.values.tolist(),
         )
