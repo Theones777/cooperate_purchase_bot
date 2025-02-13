@@ -23,10 +23,12 @@ async def confirm(msg: Message, state: FSMContext, bot: Bot):
     mailing_type = MailingTypes.massive.value
 
     if create_date := await gs_client.make_custom_worksheet(custom_type):
+        price_str = await gs_client.get_gs_price_str(custom_type)
         await storage_client.save_custom_type_to_work(
             custom_type=custom_type,
             application_date=application_date,
             create_date=create_date,
+            price_str=price_str,
         )
         buttons = [
             f"{Config.MAKE_CUSTOM_PREFIX}{custom_type}"

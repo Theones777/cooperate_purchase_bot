@@ -18,6 +18,7 @@ class CustomsWork(Model):
     custom_type = fields.CharField(max_length=255)
     application_date = fields.CharField(max_length=255)
     create_date = fields.CharField(max_length=255)
+    price_str = fields.TextField()
     status_ready = fields.BooleanField(default=False)
 
 
@@ -66,15 +67,21 @@ class Storage:
         return user.full_name if user.full_name else user.tg_user_name
 
     @staticmethod
-    async def save_custom_type_to_work(custom_type: str, application_date: str, create_date:str):
+    async def save_custom_type_to_work(custom_type: str, application_date: str, create_date: str, price_str: str):
         if await CustomsWork.filter(custom_type=custom_type):
             await Storage.delete_custom_type_from_working(custom_type)
         await CustomsWork.create(
             custom_type=custom_type,
             application_date=application_date,
             create_date=create_date,
+            price_str=price_str,
         )
         logger.info(f"Добавление заказа {custom_type} в работу")
+
+    @staticmethod
+    async def get_price_str(custom_type: str):
+        custom = await CustomsWork.filter(custom_type=custom_type).first()
+        return custom.price_str
 
     @staticmethod
     async def set_custom_ready(custom_type: str):

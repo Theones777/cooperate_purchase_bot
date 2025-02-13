@@ -80,10 +80,17 @@ class CustomsClient:
             today = False
         return today
 
-    async def get_custom_df(self, custom_type: str):
+    async def get_gs_price_str(self, custom_type: str) -> str:
+        result = ""
         df = await self._get_custom_df(custom_type)
         df = df[df[Config.AVAILABLE_COLUMN_NAME] == "да"].dropna()
-        return df
+
+        for i in range(len(df)):
+            product = df.iloc[i, 0]
+            price = df.iloc[i, 1]
+            result += f"{product}-{price}\n"
+
+        return result
 
     async def insert_sync_df(
         self, insert_df: pd.DataFrame, custom_type: str, create_date: str
