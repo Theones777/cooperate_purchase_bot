@@ -1,2 +1,8 @@
 venv
 .idea
+.env
+*.json
+*.txt
+*.csv
+*.db*
+*.session
