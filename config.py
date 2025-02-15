@@ -17,7 +17,7 @@ class Config:
     PAYMENT_BOT_USERNAME = getenv("PAYMENT_BOT_USERNAME")
     TG_SESSION_NAME = getenv("TG_SESSION_NAME", "my_session")
     TG_PAYMENT_BOT_TIMEOUT = int(getenv("TG_PAYMENT_BOT_TIMEOUT", "3"))
-    TG_PAYMENT_BOT_MESSAGES_LIMIT = int(getenv("TG_PAYMENT_BOT_MESSAGES_LIMIT", "4"))
+    TG_PAYMENT_BOT_MESSAGES_LIMIT = int(getenv("TG_PAYMENT_BOT_MESSAGES_LIMIT", "4")) # max limit = num max orders * 3
 
     DB_URL = getenv("DB_URL", "sqlite://data/database.db")
     CUSTOM_PRICE_WORKSHEET_PREFIX = getenv("CUSTOM_PRICE_WORKSHEET_PREFIX", "прайс")

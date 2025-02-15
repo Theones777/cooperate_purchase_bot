@@ -15,6 +15,34 @@ class PyroClient:
             session_string=Config.SESSION_STRING,
         )
 
+    async def check_user_payment(self, qr_number: str):
+        time = 0
+        try:
+            while time <= Config.TG_PAYMENT_BOT_TIMEOUT:
+                async for msg in self.client.get_chat_history(
+                        Config.PAYMENT_BOT_USERNAME, limit=Config.TG_PAYMENT_BOT_MESSAGES_LIMIT
+                ):
+                    # and msg.reply_to_message_id == qr_message_id
+                    if msg.from_user.is_bot and msg.text and qr_number in msg.text and "Оплачено по QR-коду" in msg.text:
+                        return True
+                time += 1
+                await asyncio.sleep(1)
+
+        except Exception as e:
+            logger.error(f"Unexpected error check_user_payment от {Config.PAYMENT_BOT_USERNAME}\n {e}")
+
+        return False
+
+    @staticmethod
+    async def _reformat_payment_message(response_text: str):
+        if "Ошибка" in response_text:
+            return response_text
+
+        response_text_split = response_text.split("\n")
+        qr_number = response_text_split[1].split(" ")[-1]
+        qr_link = response_text_split[-1].split(" ")[-1]
+        return qr_number, qr_link
+
     async def _get_link_message(self, sent_message: Message):
         async for msg in self.client.get_chat_history(
                 Config.PAYMENT_BOT_USERNAME, limit=Config.TG_PAYMENT_BOT_MESSAGES_LIMIT
@@ -37,13 +65,13 @@ class PyroClient:
                 if not response_text:
                     response_text = (
                         "Ошибка получения ссылки на оплату, "
-                        "попробуйте позже либо свяжитесь с администратором"
+                        "пожалуйста свяжитесь с администратором"
                     )
                     logger.error(f"get_payment_link error от {Config.PAYMENT_BOT_USERNAME}\n "
                                  f"Ошибка получения ответа")
 
         except Exception as e:
-            response_text = "Ошибка получения ссылки на оплату, попробуйте позже либо свяжитесь с администратором"
+            response_text = "Ошибка получения ссылки на оплату, пожалуйста свяжитесь с администратором"
             logger.error(f"Unexpected error от {Config.PAYMENT_BOT_USERNAME}\n {e}")
 
-        return response_text
+        return await self._reformat_payment_message(response_text)

@@ -10,6 +10,7 @@ from bot.texts import (
     CUSTOM_TEMPLATE,
     PAYMENT_MESSAGE,
     CUSTOM_DONE_MESSAGE,
+    CUSTOM_NOT_ACCEPTED_MESSAGE,
 )
 from bot.utils import (
     make_keyboard,
@@ -30,9 +31,28 @@ async def payed(callback: CallbackQuery, state: FSMContext):
     custom_type = user_data.get("custom_type")
     if callback.data == UserPaymentButton.payed.name:
         payment_link = user_data.get("payment_link")
-        await storage_client.update_user_custom_payed(custom_type, payment_link, callback.from_user.id)
 
-        message = CUSTOM_DONE_MESSAGE
+        if await pyro_client.check_user_payment():
+            payment_accepted = True
+            callback_message = "Спасибо за Ваш заказ!"
+            message = CUSTOM_DONE_MESSAGE
+            await callback.answer(
+                text=callback_message,
+                show_alert=False
+            )
+        else:
+            payment_accepted = False
+            callback_message = CUSTOM_NOT_ACCEPTED_MESSAGE
+            message = "Спасибо за Ваш заказ!"
+            await callback.answer(
+                text=callback_message,
+                show_alert=True
+            )
+
+        await storage_client.update_user_custom_payed(
+            custom_type, payment_link, callback.from_user.id, payment_accepted
+        )
+
         keyboard = await make_keyboard(
             [
                 f"{Config.MAKE_CUSTOM_PREFIX}{custom_type}"
@@ -40,22 +60,24 @@ async def payed(callback: CallbackQuery, state: FSMContext):
             ]
         )
         await state.clear()
-        await callback.answer(
-            text="Спасибо за оплату!",
-            show_alert=False
-        )
+
 
     elif callback.data == UserPaymentButton.error.name:
         custom_cost = user_data.get("custom_cost")
         payment_link = await pyro_client.get_payment_link(custom_cost)
-        await state.update_data(payment_link=payment_link)
+        if "Ошибка" not in payment_link:
+            await state.update_data(payment_link=payment_link[0])
 
-        message = PAYMENT_MESSAGE.format(
-            custom_cost=custom_cost,
-            payment_link=payment_link,
-        )
-        keyboard = await make_inline_keyboard(UserPaymentButton)
-        await state.set_state(User.payed)
+            message = PAYMENT_MESSAGE.format(
+                custom_cost=custom_cost,
+                payment_link=payment_link[1],
+            )
+            keyboard = await make_inline_keyboard(UserPaymentButton)
+            await state.set_state(User.payed)
+        else:
+            keyboard = ReplyKeyboardRemove()
+            message = payment_link
+            await state.clear()
 
     elif callback.data == UserPaymentButton.cancel.name:
         await storage_client.delete_user_custom(custom_type, callback.from_user.id)
@@ -93,13 +115,12 @@ async def confirm(msg: Message, state: FSMContext):
             reply_markup=ReplyKeyboardRemove()
         )
         payment_link = await pyro_client.get_payment_link(custom_cost)
-        await state.update_data(payment_link=payment_link)
-
         if "Ошибка" not in payment_link:
+            await state.update_data(payment_link=payment_link[0])
             keyboard = await make_inline_keyboard(UserPaymentButton)
             message = PAYMENT_MESSAGE.format(
                 custom_cost=custom_cost,
-                payment_link=payment_link
+                payment_link=payment_link[1]
             )
             await state.set_state(User.payed)
         else:

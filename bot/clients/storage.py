@@ -31,6 +31,7 @@ class Orders(Model):
     custom_cost = fields.IntField()
     qr_code = fields.TextField(default="")
     payed_status = fields.BooleanField(default=False)
+    payment_accepted = fields.BooleanField(default=False)
 
 
 class Storage:
@@ -123,6 +124,7 @@ class Storage:
             "order_str",
             "qr_code",
             "payed_status",
+            "payment_accepted",
         )
         return user_purchases
 
@@ -148,13 +150,14 @@ class Storage:
         logger.info(f"Закупка {custom_type} удалена из базы данных")
 
     @staticmethod
-    async def update_user_custom_payed(custom_type: str, payment_link: str, user_id: int):
+    async def update_user_custom_payed(custom_type: str, payment_link: str, user_id: int, payment_accepted: bool = False):
         user_custom = await Orders.filter(
             custom_type__custom_type=custom_type,
             user__tg_id=user_id,
         ).first()
         user_custom.qr_code = payment_link
         user_custom.payed_status = True
+        user_custom.payment_accepted = payment_accepted
         await user_custom.save()
 
         logger.info(f"Пользователь {user_id} оплатил заказ {custom_type}")
