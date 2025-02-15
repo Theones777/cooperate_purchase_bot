@@ -19,8 +19,8 @@ class PyroClient:
         async for msg in self.client.get_chat_history(
                 Config.PAYMENT_BOT_USERNAME, limit=Config.TG_PAYMENT_BOT_MESSAGES_LIMIT
         ):
-            if msg.from_user.is_bot and msg.id == sent_message.id + 1 and "http" in msg.text:
-                return msg.text
+            if msg.from_user.is_bot and msg.id == sent_message.id + 1 and msg.caption and "http" in msg.caption:
+                return msg.caption
 
     async def get_payment_link(self, custom_cost: int):
         response_text = None
