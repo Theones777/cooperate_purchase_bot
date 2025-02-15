@@ -45,8 +45,7 @@ CUSTOM_CONFIRM_MESSAGE = "Заказ принят, ожидайте сообще
 
 CUSTOM_TEMPLATE = (
     "Введите, пожалуйста Ваш заказ в формате:\n"
-    "<i>Товар1 - количество\n"
-    "Товар2 - количество ... </i>\n"
+    "<i>{template_body}</i>\n"
 )
 
 PAYMENT_MESSAGE = (

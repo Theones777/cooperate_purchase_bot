@@ -97,6 +97,17 @@ async def mailing(
             pass
 
 
+async def price_str_to_template_body(input_str: str) -> dict:
+    result = ""
+    for string in input_str.split("\n"):
+        if string:
+            string_split = string.split("-")
+            product = string_split[0].strip()
+            result += f"{product} - количество\n"
+
+    return result
+
+
 async def str_to_dict(input_str: str) -> dict:
     result = {}
     for string in input_str.split("\n"):
@@ -108,7 +119,7 @@ async def str_to_dict(input_str: str) -> dict:
     return result
 
 
-async def check_user_custom_format(user_custom: str, custom_type: str) -> str:
+async def check_user_custom_format(user_custom: str, custom_type: str) -> tuple:
     refactored_user_custom = ""
     custom_cost = 0
     price_str = await storage_client.get_price_str(custom_type)
@@ -125,6 +136,7 @@ async def check_user_custom_format(user_custom: str, custom_type: str) -> str:
                 refactored_user_custom += f"{product} - {product_count}\n"
     except Exception as e:
         logger.warning(f"Ошибка введенного формата\n {e}")
+        return False
 
     return refactored_user_custom, custom_cost
 

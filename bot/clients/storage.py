@@ -28,6 +28,7 @@ class Orders(Model):
     custom_type = fields.ForeignKeyField('models.CustomsWork', related_name='orders', on_delete=fields.CASCADE)
     create_date = fields.CharField(max_length=255, default=date.today().strftime("%d-%m-%Y"))
     order_str = fields.TextField()
+    custom_cost = fields.IntField()
     qr_code = fields.TextField(default="")
     payed_status = fields.BooleanField(default=False)
 
@@ -126,7 +127,7 @@ class Storage:
         return user_purchases
 
     @staticmethod
-    async def save_user_to_working_custom_type(custom_type: str, user_purchase: dict):
+    async def save_user_to_working_custom_type(custom_type: str, user_purchase: dict, custom_cost: int):
         user_id = list(user_purchase.keys())[0]
         user_obj = await User.get(tg_id=user_id)
         custom_type_obj = await CustomsWork.get(custom_type=custom_type)
@@ -135,6 +136,7 @@ class Storage:
             user=user_obj,
             custom_type=custom_type_obj,
             order_str=list(user_purchase.values())[0],
+            custom_cost=custom_cost,
         )
 
         logger.info(f"Пользователь {user_id} добавлен в закупку {custom_type}")

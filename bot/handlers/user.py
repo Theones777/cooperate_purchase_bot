@@ -18,13 +18,14 @@ from bot.utils import (
     check_user_custom_format,
     check_custom_application_date,
     UserPaymentButton,
+    price_str_to_template_body,
 )
 from config import Config
 
 user_router = Router()
 
 @user_router.callback_query(User.payed, F.data.in_([el.name for el in UserPaymentButton]))
-async def send_random_value(callback: CallbackQuery, state: FSMContext):
+async def payed(callback: CallbackQuery, state: FSMContext):
     user_data = await state.get_data()
     custom_type = user_data.get("custom_type")
     if callback.data == UserPaymentButton.payed.name:
@@ -86,20 +87,25 @@ async def confirm(msg: Message, state: FSMContext):
         user_custom = user_data.get("user_custom")
         custom_cost = user_data.get("custom_cost")
         user_purchase = {msg.from_user.id: user_custom}
-        await storage_client.save_user_to_working_custom_type(custom_type, user_purchase)
+        await storage_client.save_user_to_working_custom_type(custom_type, user_purchase, custom_cost)
         await msg.answer(
             text=CUSTOM_CONFIRM_MESSAGE,
             reply_markup=ReplyKeyboardRemove()
         )
         payment_link = await pyro_client.get_payment_link(custom_cost)
         await state.update_data(payment_link=payment_link)
-        message = PAYMENT_MESSAGE.format(
-            custom_cost=custom_cost,
-            payment_link=payment_link
-        )
-        keyboard = await make_inline_keyboard(UserPaymentButton)
 
-        await state.set_state(User.payed)
+        if "Ошибка" not in payment_link:
+            keyboard = await make_inline_keyboard(UserPaymentButton)
+            message = PAYMENT_MESSAGE.format(
+                custom_cost=custom_cost,
+                payment_link=payment_link
+            )
+            await state.set_state(User.payed)
+        else:
+            keyboard=ReplyKeyboardRemove()
+            message = payment_link
+            await state.clear()
     else:
         message = "Заказ отменен"
         keyboard = await make_keyboard(
@@ -148,7 +154,10 @@ async def message_handler(msg: Message, state: FSMContext):
 
         if flag_application_date and not flag_user_in_working_custom:
             await state.update_data(custom_type=custom_type)
-            message = CUSTOM_TEMPLATE
+            template_body = await price_str_to_template_body(await storage_client.get_price_str(custom_type))
+            message = CUSTOM_TEMPLATE.format(
+                template_body = template_body
+            )
             keyboard = ReplyKeyboardRemove()
             await state.set_state(User.user_custom)
         elif not flag_application_date:
